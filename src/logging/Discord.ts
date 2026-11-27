@@ -97,7 +97,9 @@ function formatDiscordEmbed(rawContent: string, level: LogLevel, color?: LogColo
                 const k = kv.slice(0, eqIndex).trim()
                 const v = kv.slice(eqIndex + 1).trim()
                 if (k && v) {
-                    fields.push({ name: k, value: truncate(v), inline: true })
+                    const isAccounts = k === 'accounts'
+                    const displayValue = isAccounts ? v.replace(/;\s+/g, '\n') : v
+                    fields.push({ name: k, value: truncate(displayValue), inline: !isAccounts })
                 }
             } else {
                 fields.push({ name: 'Detail', value: truncate(kv), inline: true })

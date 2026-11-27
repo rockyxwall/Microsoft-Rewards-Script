@@ -1,3 +1,5 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import type { BotContext } from '../core/BotContext'
 import type { AccountStats } from '../core/RunTypes'
 import type { Logger } from './Logger'
@@ -5,6 +7,13 @@ import { activityKey, summarizeCompletion, summarizeRunCompletion } from '../rew
 import { sanitizeLogMessage } from './LogMessage'
 
 type SummaryContext = Pick<BotContext, 'logger' | 'userData' | 'activityResults' | 'accountIssues'>
+
+function localDateString(date = new Date()): string {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
 
 export function logRunResult(
     logger: Pick<Logger, 'event'>,
@@ -25,11 +34,19 @@ export function logRunResult(
             : stats.some(stat => !stat.success)
               ? 'partial'
               : 'completed'
+    const accountSummaries = stats
+        .map(stat => {
+            const st = stat.status ?? (stat.success ? 'completed' : 'partial')
+            const pts = stat.pointsKnown === false ? '?' : `+${stat.collectedPoints}`
+            return `${stat.email}: ${pts} (${stat.finalPoints}) [${st}]`
+        })
+        .join('; ')
     logger.event(
         'main',
         'RUN-END',
         `${status === 'interrupted' ? 'Run interrupted' : 'Completed all accounts'} | accountsProcessed=${stats.length} | pointsGained=${pointsKnown ? pointsGained : 'unknown'}` +
-            ` | previousBalance=${initialPoints} | currentBalance=${currentBalance} | runtimeMinutes=${runtimeMinutes} | status=${status}`,
+            ` | previousBalance=${initialPoints} | currentBalance=${currentBalance} | runtimeMinutes=${runtimeMinutes} | status=${status}` +
+            (accountSummaries ? ` | accounts=${accountSummaries}` : ''),
         {
             kind: 'run',
             status,
@@ -42,6 +59,16 @@ export function logRunResult(
             completion
         }
     )
+
+    if (status === 'completed') {
+        try {
+            const logsDir = path.resolve(process.cwd(), 'logs')
+            fs.mkdirSync(logsDir, { recursive: true })
+            fs.writeFileSync(path.join(logsDir, 'last-completed.txt'), localDateString(), 'utf-8')
+        } catch {
+            // Non-fatal: task guard falls back to running
+        }
+    }
 }
 
 export function logAccountResult(context: SummaryContext, stats: AccountStats): void {

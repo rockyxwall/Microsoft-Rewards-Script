@@ -19,18 +19,20 @@ function runPs(cmd) {
 }
 
 if (action === 'install') {
-    const time = process.argv[3] || '03:00'
-    const scriptPath = path.join(projectRoot, 'dist', 'index.js').replace(/'/g, "''")
+    const time = process.argv[3] || '15:00'
+    const logonDelay = process.argv[4] || 'PT3M'
+    const vbsPath = path.join(projectRoot, 'scripts', 'main', 'runHidden.vbs').replace(/'/g, "''")
     const dirPath = projectRoot.replace(/'/g, "''")
     const psCmd = [
-        `$act = New-ScheduledTaskAction -Execute 'node.exe' -Argument '${scriptPath}' -WorkingDirectory '${dirPath}'`,
+        `$act = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '//B //Nologo "${vbsPath}"' -WorkingDirectory '${dirPath}'`,
         `$t1 = New-ScheduledTaskTrigger -Daily -At '${time}'`,
         `$t2 = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME`,
+        `$t2.Delay = '${logonDelay}'`,
         `$set = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 2)`,
         `Register-ScheduledTask -TaskName '${taskName}' -Action $act -Trigger @($t1, $t2) -Settings $set -Description 'Microsoft Rewards Daily Automation' -Force`
     ].join('; ')
     const out = runPs(psCmd)
-    console.log(`Task '${taskName}' installed. Daily trigger: ${time} + At Logon.`)
+    console.log(`Task '${taskName}' installed. Daily trigger: ${time} + At Logon (delay ${logonDelay}, hidden).`)
     if (out) console.log(out)
 } else if (action === 'uninstall') {
     const out = runPs(`Unregister-ScheduledTask -TaskName '${taskName}' -Confirm:$false -ErrorAction SilentlyContinue`)
